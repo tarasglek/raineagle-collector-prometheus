@@ -18,6 +18,8 @@ Send a POST request::
 import os
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 import RainEagle
+from RainEagle import to_epoch_1970
+import time
 
 def calc_instantdemand(idemand) :
     multiplier = int(idemand['Multiplier'], 16)
@@ -42,28 +44,20 @@ def calc_instantdemand(idemand) :
     # print "\tAmps      = {0:10.3f}".format( ((reading * 1000) / 240))
 
 import SimpleHTTPServer
-price_timestamp = None
-kw_timestamp = None
 raineagle = None
 
 class Handler(BaseHTTPRequestHandler):
     def write_kw(self):
-        global kw_timestamp
         demand = raineagle.get_instantaneous_demand()
         demand = demand['InstantaneousDemand']
-        if kw_timestamp == demand['TimeStamp']:
-            return
+        timestamp = (to_epoch_1970(demand['TimeStamp'])) * 1000
         kw = calc_instantdemand(demand)
-        self.wfile.write("kw %f\n" % (kw))
-        kw_timestamp = demand['TimeStamp']
+        self.wfile.write("kw %f %d\n" % (kw, timestamp))
 
     def write_price(self):
-        global price_timestamp
         price_params = raineagle.get_price()
-        if price_timestamp == price_params['price_timestamp']:
-            return
-        self.wfile.write("price %s\n" % price_params['price'])
-        price_timestamp = price_params['price_timestamp']
+        timestamp = (int(price_params["price_timestamp"])+time.timezone)*1000
+        self.wfile.write("price %s %d\n" % (price_params["price"], timestamp))
         
     def do_GET(self):
         self.send_response(200)
@@ -81,7 +75,7 @@ class Handler(BaseHTTPRequestHandler):
 def run(address='0.0.0.0', port=8080):
     print 'Listening on %s:%d' % (address, port)
     global raineagle
-    raineagle = RainEagle.Eagle(debug=0, addr=os.environ['RAINFOREST'])
+    raineagle = RainEagle.Eagle(debug=0, addr=os.environ['RAINFOREST'], username=None, password=None)
     httpd = HTTPServer((address, port), Handler)
     httpd.serve_forever()
     
